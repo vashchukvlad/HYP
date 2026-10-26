@@ -5,15 +5,44 @@ A full-stack demo for exploring an illustrative, potentially synthetic Kaggle da
 ## Run locally
 
 1. Copy `.env.example` to `.env` and change `JWT_SECRET`.
-2. Start the stack: `docker compose up --build`.
-3. Download `laveshjadon/ai-impact-on-students` from Kaggle and place its CSV at `data/raw/ai_impact_on_students.csv` (or pass its path explicitly below).
-4. Seed the database after services start:
+2. From the repository root, start all services:
 
-   `docker compose exec backend python /app/scripts/seed_db.py /app/data/raw/ai_impact_on_students.csv`
+   ```sh
+   docker compose up -d --build --wait
+   ```
 
-   If using the repository script outside Docker: `cd backend && uv run python ../scripts/seed_db.py ../data/raw/ai_impact_on_students.csv`.
+3. Open http://localhost:5173, click **Create an account**, register, and sign in.
+4. In **Student records**, click **Import students.csv** and select your complete dataset CSV. For a quick check, use the included `examples/students.csv` (two illustrative records). The success message reports added/updated rows; the table, record count, and charts refresh automatically.
 
-The frontend is at http://localhost:5173 and API docs are at http://localhost:8000/docs. The seed process drops duplicate and null rows, validates every remaining row, logs failures, then truncate/reloads in 1,000-row Core insert batches. This makes it safe to rerun.
+The API and Swagger UI are at http://localhost:8000/docs. PostgreSQL 16 runs in Compose; migrations run automatically before the backend starts, and the frontend waits for the backend health check. No local Python, Node, or PostgreSQL installation is required. Ports 5173, 8000, and 5432 must be available. Use a recent Docker Compose v2 with `--wait` support.
+
+`docker compose down` stops the stack while retaining imported records in the `postgres_data` volume. Start it again with `docker compose up -d --wait`. Avoid `down -v` if you want to keep your data.
+
+### Verify import against PostgreSQL in Docker
+
+```sh
+docker compose --profile test run --build --rm postgres-tests
+```
+
+This builds the test image, starts a separate PostgreSQL 16 database without published ports, applies the real Alembic migrations, and checks registration/login, UUID and enum handling, authenticated CSV import, repeated import, invalid-file rejection, table/statistics results, and concurrent uploads of the same Student ID. It uses the production database/session code without mocks. The test database uses temporary storage and does not access `postgres_data` or your imported students. A successful run ends with `1 passed`.
+
+Stop the test database afterwards:
+
+```sh
+docker compose --profile test stop postgres-test
+```
+
+The same PostgreSQL check runs in GitHub Actions on pull requests.
+
+### Optional command-line seed
+
+To replace all student records with a dataset downloaded from `laveshjadon/ai-impact-on-students`, put it at `data/raw/ai_impact_on_students.csv`, then run:
+
+```sh
+docker compose exec backend python /app/scripts/seed_db.py /app/data/raw/ai_impact_on_students.csv
+```
+
+Unlike the dashboard import, this seed command deletes existing students before inserting validated rows. Use the dashboard to insert/update while preserving other students.
 
 ### Codex cloud Docker setup
 

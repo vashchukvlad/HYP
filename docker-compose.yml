@@ -23,11 +23,42 @@ services:
       - ./scripts:/app/scripts
     depends_on:
       postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
   frontend:
     build:
       context: ./frontend
       args: { VITE_API_BASE_URL: http://localhost:8000 }
     ports: ["5173:80"]
-    depends_on: [backend]
+    depends_on:
+      backend: { condition: service_healthy }
+  postgres-test:
+    image: postgres:16-alpine
+    profiles: [test]
+    environment:
+      POSTGRES_DB: ai_impact_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_impact_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+  postgres-tests:
+    profiles: [test]
+    build:
+      context: ./backend
+      target: test
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres-test:5432/ai_impact_test
+      POSTGRES_IMPORT_TEST: "1"
+      JWT_SECRET: isolated-integration-test-secret
+    depends_on:
+      postgres-test: { condition: service_healthy }
 volumes:
   postgres_data:

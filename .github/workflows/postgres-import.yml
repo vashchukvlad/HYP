@@ -1,0 +1,23 @@
+name: PostgreSQL CSV import
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  postgres-import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure local environment
+        run: cp .env.example .env
+      - name: Verify migrated PostgreSQL import
+        run: docker compose --profile test run --build --rm postgres-tests
+      - name: Show database logs on failure
+        if: failure()
+        run: docker compose --profile test logs postgres-test
+      - name: Stop test containers
+        if: always()
+        run: docker compose --profile test down
