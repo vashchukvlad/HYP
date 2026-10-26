@@ -23,6 +23,14 @@ The helper forwards the injected proxy through Docker's predefined build argumen
 
 Check `docker compose ps`, request `/health`, `/students`, and `/stats/summary` on API port 8000, and verify the frontend on port 5173. PostgreSQL data persists in the Compose volume; do not use `down -v` unless you intend to delete it. Backend startup applies migrations transactionally before starting the API. Kaggle data is optional for checking startup and authentication.
 
+## Import students.csv from the dashboard
+
+Sign in, open **Student records**, click **Import students.csv**, and choose the full dataset CSV. Imports accept UTF-8 (including BOM), at most 10 MB and 50,000 records. Headers may use the original Kaggle names (`Student_ID`, `Major_Category`, etc.) or the API field names. All 16 student fields are required; the abbreviated visible-table export is not an import template.
+
+The entire file is validated before any changes. Invalid rows or duplicate Student IDs reject the upload with a row-specific error. New Student IDs are inserted; existing IDs are updated in a single transaction. Other students are preserved. The dashboard refreshes its table and charts and reports inserted/updated counts.
+
+The authenticated API is `POST /students/import`, with multipart field `file`.
+
 ## API
 
 - `POST /auth/register`, `POST /auth/login`, `GET /users/me`
