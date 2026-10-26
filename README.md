@@ -15,6 +15,14 @@ A full-stack demo for exploring an illustrative, potentially synthetic Kaggle da
 
 The frontend is at http://localhost:5173 and API docs are at http://localhost:8000/docs. The seed process drops duplicate and null rows, validates every remaining row, logs failures, then truncate/reloads in 1,000-row Core insert batches. This makes it safe to rerun.
 
+### Codex cloud Docker setup
+
+Run `bash scripts/docker-cloud-up.sh` from the existing checkout. It starts all three services with Compose, generates `.env` with a random development JWT secret if absent, and keeps cloud build helpers outside the checkout. Docker Compose with BuildKit, Python 3, and the cloud machine's trusted CA bundle are required. Existing `.env` files are preserved.
+
+The helper forwards the injected proxy through Docker's predefined build arguments, resolves its current hostname for build networking, and adds the machine's trusted CA bundle while keeping TLS verification enabled. It does not save proxy credentials. `HYP_CLOUD_DIR` and `DOCKER_CONFIG` can override the writable helper and Docker configuration directories. Ordinary local Docker users can continue using `docker compose up --build`.
+
+Check `docker compose ps`, request `/health`, `/students`, and `/stats/summary` on API port 8000, and verify the frontend on port 5173. PostgreSQL data persists in the Compose volume; do not use `down -v` unless you intend to delete it. Backend startup applies migrations transactionally before starting the API. Kaggle data is optional for checking startup and authentication.
+
 ## API
 
 - `POST /auth/register`, `POST /auth/login`, `GET /users/me`
