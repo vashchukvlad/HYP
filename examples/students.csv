@@ -1,0 +1,3 @@
+Student_ID,Major_Category,Year_of_Study,Pre_Semester_GPA,Post_Semester_GPA,Weekly_GenAI_Hours,Primary_Use_Case,Prompt_Engineering_Skill,Tool_Diversity,Paid_Subscription,Traditional_Study_Hours,Perceived_AI_Dependency,Institutional_Policy,Anxiety_Level_During_Exams,Skill_Retention_Score,Burnout_Risk_Level
+1,STEM,Freshman,3,3.2,4,Ideation,Beginner,1,False,8,3,Allowed_With_Citation,4,80,Low
+2,Business,Senior,3.1,3.5,12,Ideation,Advanced,3,True,10,5,Actively_Encouraged,5,75,Medium

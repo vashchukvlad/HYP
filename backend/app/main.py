@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,6 +41,47 @@ async def list_students(major_category:MajorCategory|None=None,year_of_study:Yea
     allowed={"source_student_id", "pre_semester_gpa", "post_semester_gpa", "weekly_genai_hours", "traditional_study_hours", "skill_retention_score"}; column=getattr(StudentRecord,sort_by if sort_by in allowed else "source_student_id")
     rows=(await session.scalars(select(StudentRecord).where(*where).order_by(column.desc() if sort_dir.lower()=="desc" else column.asc()).offset((page-1)*page_size).limit(page_size))).all()
     return StudentPage(items=[StudentOut(**student_out(x)) for x in rows],total=total,page=page,page_size=page_size)
+@app.post("/students/import")
+async def import_students(file: UploadFile = File(...), _: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+    from app.csv_import import parse_students
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(400, "Choose a .csv file")
+    content = await file.read(10 * 1024 * 1024 + 1)
+    await file.close()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(413, "CSV must be at most 10 MB")
+    try:
+        records = parse_students(content)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    # Serialize imports so concurrent uploads cannot insert the same ID twice.
+    if session.bind.dialect.name == "postgresql":
+        from sqlalchemy import text
+        await session.execute(text("LOCK TABLE student_records IN SHARE ROW EXCLUSIVE MODE"))
+    inserted = updated = 0
+    try:
+        for start in range(0, len(records), 500):
+            batch = records[start:start + 500]
+            existing = (await session.scalars(select(StudentRecord).where(StudentRecord.source_student_id.in_([r["source_student_id"] for r in batch])))).all()
+            by_id = {}
+            for row in existing:
+                by_id.setdefault(row.source_student_id, []).append(row)
+            for record in batch:
+                matches = by_id.get(record["source_student_id"], [])
+                if matches:
+                    for row in matches:
+                        for key, value in record.items():
+                            setattr(row, key, value)
+                    updated += 1
+                else:
+                    session.add(StudentRecord(**record))
+                    inserted += 1
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return {"inserted": inserted, "updated": updated, "total": len(records)}
+
 @app.get("/students/{record_id}",response_model=StudentOut)
 async def detail(record_id:int,session:AsyncSession=Depends(get_session)):
     row=await session.get(StudentRecord,record_id)
